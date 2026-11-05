@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OptoFiber: Spacecraft Composite Cryotank Delamination Scanner</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- MathJax v3 with explicit config before library load -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #04060c;
+            color: #d1d5db;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Formula box standard */
+        .formula-box {
+            background-color: #030712;
+            padding: 0.85rem 1.25rem;
+            border-radius: 0.5rem;
+            border: 1px solid #1f2937;
+            text-align: center;
+            color: #67e8f9;
+            font-size: 0.925rem;
+            overflow-x: auto;
+            margin: 0.75rem 0;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #080c16;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0ea5e9;
+        }
+
+        .glow-cyan {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.25);
+        }
+        .glow-red {
+            box-shadow: 0 0 18px rgba(239, 68, 68, 0.4);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#04060c] selection:bg-cyan-500/30 selection:text-cyan-200">
+
+    <!-- Top Navigation & System HUD Header -->
+    <header class="border-b border-gray-800/80 bg-gray-950/80 backdrop-blur sticky top-0 z-50 px-4 lg:px-8 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="p-2 rounded-lg bg-cyan-950/60 border border-cyan-800 text-cyan-400">
+                    <i data-lucide="scan-line" class="w-6 h-6 animate-pulse"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs uppercase tracking-widest font-mono text-cyan-400 font-semibold">NASA SBIR S12.04</span>
+                        <span class="text-gray-600">|</span>
+                        <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700/50">TRL 4 &rarr; 6</span>
+                    </div>
+                    <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                        OptoFiber: Composite Cryotank Delamination Scanner
+                    </h1>
+                </div>
+            </div>
+
+            <!-- Global Tabs -->
+            <nav class="flex items-center bg-gray-900/90 p-1 rounded-xl border border-gray-800 text-sm font-medium">
+                <button id="tabBtnSim" onclick="switchTab('sim')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-cyan-300 bg-cyan-950/70 border border-cyan-800/80 transition-all">
+                    <i data-lucide="activity" class="w-4 h-4"></i>
+                    <span>Flight HUD & Sim</span>
+                </button>
+                <button id="tabBtnPhysics" onclick="switchTab('physics')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-gray-400 hover:text-white transition-all">
+                    <i data-lucide="atom" class="w-4 h-4"></i>
+                    <span>FBG Physics & Math</span>
+                </button>
+                <button id="tabBtnProposal" onclick="switchTab('proposal')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-gray-400 hover:text-white transition-all">
+                    <i data-lucide="file-check-2" class="w-4 h-4"></i>
+                    <span>NASA Proposal</span>
+                </button>
+                <button id="tabBtnARR" onclick="switchTab('arr')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-gray-400 hover:text-white transition-all">
+                    <i data-lucide="trending-up" class="w-4 h-4"></i>
+                    <span>Civil ARR ($218M)</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Dynamic View Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6">
+
+        <!-- ========================================================================= -->
+        <!-- TAB 1: TELEMETRY HUD & INTERACTIVE SIMULATION -->
+        <!-- ========================================================================= -->
+        <div id="viewSim" class="space-y-6">
+            <!-- Top Metric Tiles & Threat Readout -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 font-mono">
+                <div class="p-3 rounded-xl bg-gray-900/50 border border-gray-800">
+                    <div class="text-[11px] text-gray-400 uppercase tracking-wider">Hydrostatic $P$</div>
+                    <div class="text-2xl font-bold text-white flex items-baseline gap-1 mt-1">
+                        <span id="hudPressure">0.0</span> <span class="text-xs text-gray-500">MPa</span>
+                    </div>
+                    <div class="text-[11px] text-cyan-400/80 mt-1" id="hudPressurePsi">0.0 psia (LH2 Fueling)</div>
+                </div>
+
+                <div class="p-3 rounded-xl bg-gray-900/50 border border-gray-800">
+                    <div class="text-[11px] text-gray-400 uppercase tracking-wider">Peak Bragg $\lambda_B$</div>
+                    <div class="text-2xl font-bold text-cyan-400 flex items-baseline gap-1 mt-1">
+                        <span id="hudWavelength">1550.000</span> <span class="text-xs text-gray-500">nm</span>
+                    </div>
+                    <div class="text-[11px] text-gray-400 mt-1" id="hudShift">&Delta;&lambda; = +0.000 nm</div>
+                </div>
+
+                <div class="p-3 rounded-xl bg-gray-900/50 border border-gray-800">
+                    <div class="text-[11px] text-gray-400 uppercase tracking-wider">Hysteresis Deficit ($\delta_h$)</div>
+                    <div class="text-2xl font-bold text-emerald-400 flex items-baseline gap-1 mt-1" id="hudHysteresisWrap">
+                        <span id="hudHysteresis">0.000</span> <span class="text-xs text-gray-500">nm</span>
+                    </div>
+                    <div class="text-[11px] text-gray-400 mt-1" id="hudResidualStrain">&epsilon;_res: 0.0 &mu;&epsilon;</div>
+                </div>
+
+                <div class="p-3 rounded-xl bg-gray-900/50 border border-gray-800">
+                    <div class="text-[11px] text-gray-400 uppercase tracking-wider">Permeation Risk</div>
+                    <div class="text-2xl font-bold text-emerald-400 flex items-baseline gap-1 mt-1" id="hudPermeationWrap">
+                        <span id="hudPermeation">0.0</span> <span class="text-xs text-gray-500">sccm/m²</span>
+                    </div>
+                    <div class="text-[11px] text-gray-400 mt-1" id="hudSubsurfaceFlux">Threshold: 1.2 sccm</div>
+                </div>
+
+                <div class="col-span-2 md:col-span-1 p-3 rounded-xl bg-gray-900/50 border border-gray-800 flex flex-col justify-between">
+                    <div class="text-[11px] text-gray-400 uppercase tracking-wider">Safety Observer State</div>
+                    <div id="hudSafetyBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 text-xs font-semibold w-fit mt-1">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> NOMINAL PLY INTEGRITY
+                    </div>
+                    <div class="text-[10px] text-gray-500 mt-1">Inter-laminar shear: Stable</div>
+                </div>
+            </div>
+
+            <!-- Center Stage: Hardware Cross-Section Canvas + Phase-Space Chart -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Interactive Composite Cross-Section & Optical Waveguide Canvas -->
+                <div class="lg:col-span-7 bg-gray-950 rounded-2xl border border-gray-800/80 p-4 flex flex-col justify-between">
+                    <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="layers" class="w-5 h-5 text-cyan-400"></i>
+                            <h2 class="text-sm font-semibold text-white tracking-wide uppercase font-mono">
+                                Type V Linerless Tank Ply Micro-Structure (20 K LH2)
+                            </h2>
+                        </div>
+                        <span class="text-xs font-mono text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-800/60">
+                            Fiber Embedded: Inter-ply 4/5 [90°/±45°]
+                        </span>
+                    </div>
+
+                    <div class="relative w-full h-[320px] my-2 bg-[#020408] rounded-xl overflow-hidden border border-gray-900">
+                        <canvas id="tankCanvas" class="w-full h-full block"></canvas>
+                        <!-- Overlay Legend inside Canvas -->
+                        <div class="absolute bottom-3 left-3 bg-gray-950/90 backdrop-blur border border-gray-800 rounded-lg p-2.5 text-[11px] font-mono space-y-1 text-gray-300">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-1 bg-cyan-400 rounded"></span> Embedded Single-Mode FBG (Polyimide-Coated 125&mu;m)
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-1 bg-rose-500 rounded"></span> Resin Matrix Transverse Micro-Cracks (<span id="canvasCrackCount">0</span> active)
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-1 bg-amber-400 rounded"></span> LH2 Cryogenic Permeation Leakpath Front
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-xs text-gray-400 font-mono flex items-center justify-between pt-2">
+                        <span>Propellant: Liquid Hydrogen ($\text{LH}_2$ @ $20.28\text{ K}$)</span>
+                        <span>Array: 16-Channel Wavelength-Division Multiplexing (WDM)</span>
+                    </div>
+                </div>
+
+                <!-- Primary Diagnostic Phase-Space Chart: lambda vs Pressure (P) -->
+                <div class="lg:col-span-5 bg-gray-950 rounded-2xl border border-gray-800/80 p-4 flex flex-col justify-between">
+                    <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="git-commit" class="w-5 h-5 text-cyan-400"></i>
+                            <h2 class="text-sm font-semibold text-white tracking-wide uppercase font-mono">
+                                Phase Space: Bragg Wavelength ($\lambda$) vs Pressure ($P$)
+                            </h2>
+                        </div>
+                        <span class="text-[11px] font-mono text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/60">
+                            Hysteresis Loop Scanner
+                        </span>
+                    </div>
+
+                    <div class="relative w-full h-[320px] my-2">
+                        <canvas id="phaseSpaceChart"></canvas>
+                    </div>
+
+                    <div class="text-[11px] text-gray-400 font-mono flex items-center justify-between pt-1 border-t border-gray-900">
+                        <span class="text-cyan-400">&mdash; Theoretical Elastic Slope</span>
+                        <span class="text-rose-400">&bull;&bull;&bull; Micro-crack Plastic Shift ($\Delta\lambda_{\text{perm}}$)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Closed-Loop Control & Stress Cycle Simulator Panel -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-gray-900/30 border border-gray-800 rounded-2xl p-5">
+                <!-- Fueling Cycle Controller -->
+                <div class="lg:col-span-5 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-white uppercase font-mono flex items-center gap-2">
+                            <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i>
+                            Cryo-Pressurization Stage Controls
+                        </h3>
+                        <span id="cycleModeBadge" class="text-xs font-mono px-2 py-0.5 rounded bg-gray-800 text-gray-300">
+                            MODE: STATIC HOLD
+                        </span>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-gray-400">Cryo-Proof Hydrostatic Pressure ($P$)</span>
+                            <span class="text-cyan-400 font-semibold" id="sliderValPressure">0.0 MPa (0 - 4.5 MPa)</span>
+                        </div>
+                        <input id="pressureSlider" type="range" min="0" max="4.5" step="0.05" value="0.0" 
+                            class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                            oninput="updateManualPressure(this.value)">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-gray-400">Tank Cryogenic Wall Temperature ($T_w$)</span>
+                            <span class="text-blue-400 font-semibold" id="sliderValTemp">20 K (Liquid H2)</span>
+                        </div>
+                        <input id="tempSlider" type="range" min="20" max="293" step="1" value="20" 
+                            class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            oninput="updateManualTemp(this.value)">
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 pt-2">
+                        <button onclick="runAutoCycle()" id="autoCycleBtn" class="flex-1 min-w-[130px] flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-xs transition">
+                            <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                            <span>Execute Fuel & Vent Cycle</span>
+                        </button>
+                        <button onclick="resetSimulation()" class="py-2 px-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-mono transition">
+                            Reset State
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Fault Injections & Closed-Loop Autonomous Abort -->
+                <div class="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="p-4 rounded-xl bg-gray-950/60 border border-gray-800/80 space-y-3">
+                        <div class="text-xs font-mono font-semibold text-rose-400 uppercase flex items-center gap-1.5">
+                            <i data-lucide="zap-off" class="w-4 h-4"></i>
+                            Structural Fault Injection
+                        </div>
+                        <p class="text-xs text-gray-400 leading-relaxed">
+                            Inject stress concentrations mimicking pre-existing autoclave void growth or impact-induced inter-laminar delamination under 4.0 MPa proof stress.
+                        </p>
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <button onclick="injectDamage('microcrack')" class="py-2 px-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800 text-rose-300 text-xs font-mono transition text-center">
+                                + Resin Microcracking
+                            </button>
+                            <button onclick="injectDamage('delamination')" class="py-2 px-2.5 rounded-lg bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800 text-purple-300 text-xs font-mono transition text-center">
+                                + Ply Delamination
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-gray-950/60 border border-gray-800/80 space-y-3 flex flex-col justify-between">
+                        <div>
+                            <div class="text-xs font-mono font-semibold text-cyan-400 uppercase flex items-center gap-1.5">
+                                <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                                Autonomous Ground Abort Loop
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2 leading-relaxed" id="loopStatusDesc">
+                                Observer monitoring continuous $\oint \lambda_B(P) dP$. If hysteresis loop deficit $\delta_h > 0.082\text{ nm}$, ground fueling valve closes instantly prior to catastrophic rupture.
+                            </p>
+                        </div>
+                        <div class="flex items-center justify-between pt-2 border-t border-gray-800">
+                            <span class="text-xs font-mono text-gray-400">Interlock:</span>
+                            <span id="valveStatus" class="text-xs font-mono font-bold text-emerald-400">VALVES OPEN (FLOW OK)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Secondary Telemetry Plots: Strain & Permeation Over Time -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-gray-950 rounded-2xl border border-gray-800/80 p-4">
+                    <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-800">
+                        <span class="text-xs font-mono font-semibold text-gray-300 uppercase">Microstrain Dynamics: Axial vs Hoop Fiber Strain</span>
+                        <span class="text-[10px] font-mono text-cyan-400">10 Hz High-Speed Optical Interrogator</span>
+                    </div>
+                    <div class="h-48 relative">
+                        <canvas id="strainTimeChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-gray-950 rounded-2xl border border-gray-800/80 p-4">
+                    <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-800">
+                        <span class="text-xs font-mono font-semibold text-gray-300 uppercase">Estimated LH2 Permeation Flux ($\Phi$) vs Threshold</span>
+                        <span class="text-[10px] font-mono text-amber-400">Knudsen Micro-Diffusion Model</span>
+                    </div>
+                    <div class="h-48 relative">
+                        <canvas id="permeationTimeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL -->
+        <!-- ========================================================================= -->
+        <div id="viewPhysics" class="hidden space-y-6">
+            <div class="border-b border-gray-800 pb-4">
+                <div class="flex items-center gap-2 text-cyan-400 font-mono text-xs uppercase tracking-wider">
+                    <i data-lucide="book-open" class="w-4 h-4"></i> First-Principles Cryogenic Structural Mechanics
+                </div>
+                <h2 class="text-2xl font-bold text-white mt-1">Fiber Bragg Grating (FBG) Strain Inversion in Type V Tanks</h2>
+                <p class="text-sm text-gray-400 max-w-3xl mt-1">
+                    Mathematical foundation governing photonic phase shifts, composite ply constitutive degradation, and irreversible hysteresis detection during cryogenic propellant loading cycles.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Card 1: Optical Bragg Scattering -->
+                <div class="p-5 rounded-2xl bg-gray-950 border border-gray-800/90 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
+                                Photonic Kinematics
+                            </span>
+                            <span class="text-xs text-gray-500 font-mono">Eq. 1.0 & 1.1</span>
+                        </div>
+                        <h3 class="text-base font-semibold text-white">Fiber Bragg Wavelength Shift Equation</h3>
+                        <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+                            The central reflected Bragg wavelength $\lambda_B$ is governed by the effective refractive core index $n_{\text{eff}}$ and grating periodicity $\Lambda_0$. Localized mechanical strain $\varepsilon$ and cryogenic temperature shifts $\Delta T$ modulate this response via the photo-elastic tensor:
+                        </p>
+                        <div class="formula-box">
+                            $$\lambda_B = 2 n_{\text{eff}} \Lambda_0$$
+                        </div>
+                        <div class="formula-box">
+                            $$\frac{\Delta \lambda_B}{\lambda_B} = \left( 1 - p_e \right) \varepsilon_z + \left[ \alpha_f + \zeta_f \right] \Delta T$$
+                        </div>
+                        <p class="text-xs text-gray-400 leading-relaxed mt-2">
+                            Where $p_e \approx \frac{n_{\text{eff}}^2}{2}[p_{12} - \nu_f (p_{11} + p_{12})] \approx 0.22$ is the effective photo-elastic coefficient of silica, $\alpha_f$ is thermal expansion, and $\zeta_f$ is the thermo-optic coefficient.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-gray-900 text-[11px] font-mono text-cyan-400">
+                        Sensitivity @ 1550 nm: $\approx 1.20\text{ pm}/\mu\varepsilon$ (mechanical) & $9.8\text{ pm}/\text{K}$ (thermal)
+                    </div>
+                </div>
+
+                <!-- Card 2: Composite Mechanics & Pressure Hooke's Law -->
+                <div class="p-5 rounded-2xl bg-gray-950 border border-gray-800/90 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
+                                Lamina Mechanics
+                            </span>
+                            <span class="text-xs text-gray-500 font-mono">Eq. 2.0</span>
+                        </div>
+                        <h3 class="text-base font-semibold text-white">Linerless Tank Membrane Constitutive Law</h3>
+                        <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+                            For a cylindrical Type V composite shell of radius $R$ and wall thickness $t$ subjected to internal hydrostatic pressure $P$, membrane hoop stress $\sigma_\theta$ and axial stress $\sigma_z$ induce multi-axial ply strains governed by Classical Lamination Theory (CLT):
+                        </p>
+                        <div class="formula-box">
+                            $$\begin{bmatrix} N_x \\ N_y \\ N_{xy} \end{bmatrix} = \begin{bmatrix} \frac{P R}{2} \\ P R \\ 0 \end{bmatrix} = \begin{bmatrix} A_{11} & A_{12} & 0 \\ A_{12} & A_{22} & 0 \\ 0 & 0 & A_{66} \end{bmatrix} \begin{bmatrix} \varepsilon_x^0 \\ \varepsilon_y^0 \\ \gamma_{xy}^0 \end{bmatrix}$$
+                        </div>
+                        <p class="text-xs text-gray-400 leading-relaxed mt-2">
+                            In an undamaged elastic laminate, $\varepsilon(P) = k_{\text{lam}} P$. Consequently, the undisturbed spectral response traces a perfectly reversible, linear trajectory: $\lambda_B(P) = \lambda_0 + S_P P$.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-gray-900 text-[11px] font-mono text-blue-400">
+                        $S_P = \lambda_0 (1-p_e)\frac{R}{t}\left[\frac{2-\nu_{xy}}{2 E_x}\right] \approx 0.685\text{ nm/MPa}$
+                    </div>
+                </div>
+
+                <!-- Card 3: Damage Mechanics & Hysteresis Deficit Formulation -->
+                <div class="p-5 rounded-2xl bg-gray-950 border border-gray-800/90 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">
+                                Damage Evolution
+                            </span>
+                            <span class="text-xs text-gray-500 font-mono">Eq. 3.0 & 3.1</span>
+                        </div>
+                        <h3 class="text-base font-semibold text-white">Hysteresis Integral & Interlaminar Delamination</h3>
+                        <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+                            Cryogenic thermal mismatch combined with tensile hoop loading initiates matrix micro-cracking at transverse plies ($90^\circ$). Upon venting ($P \to 0$), friction and crack face tortuosity prevent complete elastic recovery, leaving permanent residual strain $\varepsilon_{\text{res}}$:
+                        </p>
+                        <div class="formula-box">
+                            $$\delta_h = \lambda_{\text{vent}}(P) - \lambda_{\text{charge}}(P) = \lambda_0 (1-p_e) \varepsilon_{\text{res}}(D)$$
+                        </div>
+                        <div class="formula-box">
+                            $$\mathcal{H} = \oint_{\text{cycle}} \lambda_B(P)\, dP = \int_0^{P_{\max}} \left[ \lambda_{\text{press}} - \lambda_{\text{vent}} \right] dP \propto G_{IIc} \cdot A_{\text{delam}}$$
+                        </div>
+                        <p class="text-xs text-gray-400 leading-relaxed mt-2">
+                            Where $\mathcal{H}$ directly quantifies dissipated fracture energy $G_{IIc}$ across cumulative delamination area $A_{\text{delam}}$, unmasking hidden structural failure before leak occurs.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-gray-900 text-[11px] font-mono text-purple-400">
+                        Damage threshold: $\delta_h > 0.082\text{ nm} \implies D > 0.15 \implies$ Structural Fatigue Alert
+                    </div>
+                </div>
+
+                <!-- Card 4: Permeation Kinetics & Knudsen Flow -->
+                <div class="p-5 rounded-2xl bg-gray-950 border border-gray-800/90 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800">
+                                Permeation Physics
+                            </span>
+                            <span class="text-xs text-gray-500 font-mono">Eq. 4.0</span>
+                        </div>
+                        <h3 class="text-base font-semibold text-white">Hydrogen Gas Microchannel Permeation Model</h3>
+                        <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+                            Linerless Type V tanks fail through micro-channel percolation networks connecting opposing shell walls. Gaseous and supercritical $H_2$ leakage follows combined Knudsen diffusion and viscous Poiseuille channel flow:
+                        </p>
+                        <div class="formula-box">
+                            $$\Phi_{H_2} = \left[ \frac{\pi d_c^4}{128 \mu R_g T} \bar{P} + \frac{d_c^3}{6} \sqrt{\frac{2\pi}{M R_g T}} \right] \frac{\Delta P}{L_c} \cdot \rho_{\text{crack}}$$
+                        </div>
+                        <p class="text-xs text-gray-400 leading-relaxed mt-2">
+                            Here $d_c$ is crack aperture opening (directly proportional to $\varepsilon_{\text{res}}$), $\mu$ is viscosity of hydrogen gas, $\rho_{\text{crack}}$ is crack density per unit area, and $L_c$ is ply tortuosity path.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-gray-900 text-[11px] font-mono text-rose-400">
+                        Permeation Limit: $< 1.2\text{ sccm/m}^2$ (NASA SP-8007 standard for manned stages)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 3: NASA SBIR/STTR PROPOSAL & HARDWARE TRANSITION -->
+        <!-- ========================================================================= -->
+        <div id="viewProposal" class="hidden space-y-6">
+            <!-- Solicitation & Executive Overview -->
+            <div class="p-6 rounded-2xl bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border border-cyan-900/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                    <span class="text-xs font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 uppercase tracking-widest font-semibold">
+                        NASA SBIR Phase I Solicitation: Topic S12.04
+                    </span>
+                    <h2 class="text-xl font-bold text-white mt-2">Advanced Linerless Composite Cryogenic Propellant Tanks</h2>
+                    <p class="text-xs text-gray-400 max-w-2xl mt-1">
+                        High-rate optical fiber health-monitoring system for sub-surface micro-crack and delamination detection during launch vehicle loading operations at Kennedy Space Center (KSC).
+                    </p>
+                </div>
+                <div class="flex flex-col items-end text-right font-mono">
+                    <div class="text-2xl font-bold text-cyan-400">$225,000</div>
+                    <div class="text-xs text-gray-400">Phase I Award | 6-Month Period</div>
+                    <div class="text-[11px] text-emerald-400 mt-1">TRL Advancement: 4 &rarr; 6</div>
+                </div>
+            </div>
+
+            <!-- University Partner Allocation Card (STTR Model) -->
+            <div class="p-5 rounded-2xl bg-gray-950 border border-gray-800">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 rounded-lg bg-yellow-950/50 border border-yellow-700/60 text-yellow-400">
+                            <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-semibold text-white">Research Institution Subcontract Partner (STTR Model)</h3>
+                            <p class="text-xs text-gray-400">Center for Advanced Turbomachinery and Energy Research (CATER) - University of Central Florida (UCF)</p>
+                        </div>
+                    </div>
+                    <div class="text-right font-mono">
+                        <span class="text-base font-bold text-yellow-400">$67,500</span>
+                        <div class="text-xs text-gray-500">Exact 30.0% Allocation</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1">
+                        <div class="font-mono text-cyan-400 font-semibold">Facilities Committed</div>
+                        <p class="text-gray-400">Cryogenic liquid hydrogen flow loop, 20 K vacuum chamber, and high-frequency laser interferometric optical test benches.</p>
+                    </div>
+                    <div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1">
+                        <div class="font-mono text-cyan-400 font-semibold">Co-Principal Investigator</div>
+                        <p class="text-gray-400">Tenured faculty lead in smart structures and composite mechanics with 40+ peer-reviewed cryo-composite papers.</p>
+                    </div>
+                    <div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1">
+                        <div class="font-mono text-cyan-400 font-semibold">Hardware Milestones</div>
+                        <p class="text-gray-400">Co-cure embedding of 125&mu;m polyimide FBGs within 16-ply IM7/8552 carbon-fiber panels without knock-down of inter-laminar shear.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6-Month Work Breakdown Schedule -->
+            <div class="bg-gray-950 rounded-2xl border border-gray-800 p-5">
+                <h3 class="text-sm font-semibold text-white uppercase font-mono mb-4 flex items-center gap-2">
+                    <i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i>
+                    Phase I Milestone & Technical Deliverables Schedule
+                </h3>
+
+                <div class="space-y-4">
+                    <!-- Milestone 1 -->
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between p-3.5 rounded-xl bg-gray-900/50 border border-gray-800/80 gap-3">
+                        <div class="flex items-start gap-3">
+                            <span class="px-2 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs font-mono font-bold">M1-M2</span>
+                            <div>
+                                <h4 class="text-sm font-semibold text-white">Constitutive Damage & Cryogenic Optical Modeling</h4>
+                                <p class="text-xs text-gray-400 mt-0.5">Finite element simulation of strain transfer across fiber coating at 20 K. Calibration of photoelastic tensor.</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-mono text-emerald-400 bg-emerald-950/40 px-2.5 py-1 rounded border border-emerald-800/50">Deliverable 1: Kinematic Sim</span>
+                    </div>
+
+                    <!-- Milestone 2 -->
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between p-3.5 rounded-xl bg-gray-900/50 border border-gray-800/80 gap-3">
+                        <div class="flex items-start gap-3">
+                            <span class="px-2 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs font-mono font-bold">M3-M4</span>
+                            <div>
+                                <h4 class="text-sm font-semibold text-white">Coupled Hysteresis State-Observer Inversion Algorithm</h4>
+                                <p class="text-xs text-gray-400 mt-0.5">Development of real-time $\oint \lambda dP$ numerical integrator detecting $0.015\text{ nm}$ shifts amidst cryo-temp transients.</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-mono text-emerald-400 bg-emerald-950/40 px-2.5 py-1 rounded border border-emerald-800/50">Deliverable 2: Software Engine</span>
+                    </div>
+
+                    <!-- Milestone 3 -->
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between p-3.5 rounded-xl bg-gray-900/50 border border-gray-800/80 gap-3">
+                        <div class="flex items-start gap-3">
+                            <span class="px-2 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs font-mono font-bold">M5</span>
+                            <div>
+                                <h4 class="text-sm font-semibold text-white">Cryogenic Proof Test Validation at UCF CATER Loop</h4>
+                                <p class="text-xs text-gray-400 mt-0.5">Pressurization to 4.5 MPa with liquid nitrogen (77 K) and liquid hydrogen (20 K); 50 cycles of loading/venting.</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-mono text-emerald-400 bg-emerald-950/40 px-2.5 py-1 rounded border border-emerald-800/50">Deliverable 3: Empirical Test Data</span>
+                    </div>
+
+                    <!-- Milestone 4 -->
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between p-3.5 rounded-xl bg-gray-900/50 border border-gray-800/80 gap-3">
+                        <div class="flex items-start gap-3">
+                            <span class="px-2 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs font-mono font-bold">M6</span>
+                            <div>
+                                <h4 class="text-sm font-semibold text-white">Phase II Transition Architecture & Ground GSE Flight Readiness</h4>
+                                <p class="text-xs text-gray-400 mt-0.5">Interface specification for Space Launch System (SLS) / Commercial Lunar Payload Services (CLPS) tank integration.</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-mono text-emerald-400 bg-emerald-950/40 px-2.5 py-1 rounded border border-emerald-800/50">Deliverable 4: Phase II Flight Spec</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase II Hardware Transition Roadmap -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                <div class="p-4 rounded-xl bg-gray-950 border border-gray-800">
+                    <div class="text-cyan-400 font-semibold mb-1 uppercase">NASA Phase II Transition ($850K - $1.25M)</div>
+                    <p class="text-gray-400 leading-relaxed font-sans">
+                        Full-scale 2.4-meter diameter Type V cryotank fabrication with automated fiber placement (AFP). Insertion into NASA Marshall Space Flight Center (MSFC) structural test article stand for acoustic, thermal, and hydrostatic burst qualification.
+                    </p>
+                </div>
+                <div class="p-4 rounded-xl bg-gray-950 border border-gray-800">
+                    <div class="text-emerald-400 font-semibold mb-1 uppercase">Artemis Moon-to-Mars Insertion Target</div>
+                    <p class="text-gray-400 leading-relaxed font-sans">
+                        Enabling 35% mass savings over aluminum-lithium (Al-Li 2195) tanks on upper stages and Human Landing System (HLS) descent stages, directly increasing net trans-lunar payload capacity by +2,400 kg.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR BREAKDOWN -->
+        <!-- ========================================================================= -->
+        <div id="viewARR" class="hidden space-y-6">
+            <!-- Header Summary Box -->
+            <div class="p-6 rounded-2xl bg-gradient-to-r from-gray-950 via-cyan-950/20 to-gray-950 border border-cyan-800/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                    <span class="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 uppercase tracking-widest font-semibold">
+                        Commercialization & Civil Market Analysis
+                    </span>
+                    <h2 class="text-2xl font-bold text-white mt-2">Civil Fleet ARR Potential: $218.4M Nationwide</h2>
+                    <p class="text-xs text-gray-400 max-w-2xl mt-1">
+                        SaaS & Telemetry Diagnostic runtime licensing across high-pressure composite overwrapped pressure vessels (COPV) and cryogenic infrastructure.
+                    </p>
+                </div>
+                <div class="p-3 rounded-xl bg-gray-900 border border-gray-800 text-right font-mono">
+                    <div class="text-xs text-gray-400">Enterprise Valuation (10x SaaS Multiple)</div>
+                    <div class="text-2xl font-bold text-cyan-400">$2.18 Billion</div>
+                    <div class="text-[11px] text-emerald-400">Defensible Deep-Tech IP Moat</div>
+                </div>
+            </div>
+
+            <!-- ARR Breakdown Table -->
+            <div class="bg-gray-950 rounded-2xl border border-gray-800 overflow-hidden">
+                <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+                    <h3 class="text-sm font-semibold text-white uppercase font-mono flex items-center gap-2">
+                        <i data-lucide="table" class="w-4 h-4 text-cyan-400"></i>
+                        Target Civil Sectors & Projected Recurring Software Revenue
+                    </h3>
+                    <span class="text-xs font-mono text-gray-400">Pricing Model: Per Vessel / Active Interrogator / Year</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs font-mono">
+                        <thead>
+                            <tr class="border-b border-gray-800 bg-gray-900/60 text-gray-400 uppercase text-[11px]">
+                                <th class="p-3.5">Commercial Vertical</th>
+                                <th class="p-3.5">Target Application</th>
+                                <th class="p-3.5">Nationwide Asset Base</th>
+                                <th class="p-3.5">Software / SaaS Metric</th>
+                                <th class="p-3.5 text-right">Mature ARR ($M)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-800/60 text-gray-300">
+                            <tr class="hover:bg-gray-900/40 transition">
+                                <td class="p-3.5 font-semibold text-white flex items-center gap-2">
+                                    <i data-lucide="truck" class="w-4 h-4 text-cyan-400"></i> Class 8 H2 Freight Trucks
+                                </td>
+                                <td class="p-3.5 font-sans">Type IV/V 700 bar fuel-cell onboard hydrogen cylinders</td>
+                                <td class="p-3.5">24,000 active tractors</td>
+                                <td class="p-3.5 text-gray-400">$1,800 / truck / year</td>
+                                <td class="p-3.5 text-right font-bold text-cyan-400">$43.2M</td>
+                            </tr>
+                            <tr class="hover:bg-gray-900/40 transition">
+                                <td class="p-3.5 font-semibold text-white flex items-center gap-2">
+                                    <i data-lucide="plane" class="w-4 h-4 text-cyan-400"></i> Zero-Emission Commercial Aviation
+                                </td>
+                                <td class="p-3.5 font-sans">Cryogenic LH2 fuselage-integrated airframe tanks</td>
+                                <td class="p-3.5">1,250 regional aircraft</td>
+                                <td class="p-3.5 text-gray-400">$32,000 / airframe / year</td>
+                                <td class="p-3.5 text-right font-bold text-cyan-400">$40.0M</td>
+                            </tr>
+                            <tr class="hover:bg-gray-900/40 transition">
+                                <td class="p-3.5 font-semibold text-white flex items-center gap-2">
+                                    <i data-lucide="rocket" class="w-4 h-4 text-cyan-400"></i> Commercial Space & Launch (CLPS)
+                                </td>
+                                <td class="p-3.5 font-sans">Upper-stage LOX/LH2 & Methane composite tanks</td>
+                                <td class="p-3.5">180 orbital launches/yr</td>
+                                <td class="p-3.5 text-gray-400">$125,000 / stage qualification</td>
+                                <td class="p-3.5 text-right font-bold text-cyan-400">$22.5M</td>
+                            </tr>
+                            <tr class="hover:bg-gray-900/40 transition">
+                                <td class="p-3.5 font-semibold text-white flex items-center gap-2">
+                                    <i data-lucide="factory" class="w-4 h-4 text-cyan-400"></i> Bulk Industrial Gas Logistics
+                                </td>
+                                <td class="p-3.5 font-sans">Cryogenic road tankers & multi-element gas containers (MEGC)</td>
+                                <td class="p-3.5">8,600 transport trailers</td>
+                                <td class="p-3.5 text-gray-400">$4,500 / trailer / year</td>
+                                <td class="p-3.5 text-right font-bold text-cyan-400">$38.7M</td>
+                            </tr>
+                            <tr class="hover:bg-gray-900/40 transition">
+                                <td class="p-3.5 font-semibold text-white flex items-center gap-2">
+                                    <i data-lucide="anchor" class="w-4 h-4 text-cyan-400"></i> Maritime Liquid H2 Shipping
+                                </td>
+                                <td class="p-3.5 font-sans">LH2 bulk bunker tanks & deep-sea cargo containment</td>
+                                <td class="p-3.5">380 bunkering vessels</td>
+                                <td class="p-3.5 text-gray-400">$95,000 / ship license / yr</td>
+                                <td class="p-3.5 text-right font-bold text-cyan-400">$36.1M</td>
+                            </tr>
+                            <tr class="hover:bg-gray-900/40 transition">
+                                <td class="p-3.5 font-semibold text-white flex items-center gap-2">
+                                    <i data-lucide="zap" class="w-4 h-4 text-cyan-400"></i> Grid Hydrogen Energy Storage
+                                </td>
+                                <td class="p-3.5 font-sans">High-pressure underground and modular surface vessel banks</td>
+                                <td class="p-3.5">3,150 utility substations</td>
+                                <td class="p-3.5 text-gray-400">$12,000 / substation / year</td>
+                                <td class="p-3.5 text-right font-bold text-cyan-400">$37.8M</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-gray-900 text-white font-bold text-sm border-t border-gray-700">
+                                <td colspan="4" class="p-4 text-right uppercase">Total Civil & Commercial Addressable ARR:</td>
+                                <td class="p-4 text-right text-emerald-400 text-base">$218.3M / yr</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Deep-Dive Industry Insights Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div class="p-5 rounded-2xl bg-gray-950 border border-gray-800 space-y-3 flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs font-mono font-semibold text-cyan-400 uppercase">Heavy Duty Road Logistics</div>
+                        <h4 class="text-sm font-semibold text-white mt-1">700-Bar Hydrogen Cylinder Fatigue</h4>
+                        <div class="text-xs text-gray-400 mt-2 space-y-2 font-sans">
+                            <p><strong class="text-gray-300">Physics in 1 Sentence:</strong> High-rate 700 bar dispensing produces rapid adiabatic heat-up ($\Delta T > 60\text{ K}$) during fast-fill followed by cryogenic expansion, concentrating shear stresses at the boss-to-liner transition.</p>
+                            <p><strong class="text-gray-300">Why Others Missed This:</strong> Incumbents rely on external ultrasonic testing or static hydrostatic testing once every 5 years, completely blind to intra-laminar micro-cracking occurring midway through highway freight routes.</p>
+                        </div>
+                    </div>
+                    <span class="text-[11px] font-mono text-cyan-300 pt-2 border-t border-gray-900 block">ROI: Prevents $240,000 roadside tank blowout</span>
+                </div>
+
+                <div class="p-5 rounded-2xl bg-gray-950 border border-gray-800 space-y-3 flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs font-mono font-semibold text-cyan-400 uppercase">Aviation & Commuter Turboprops</div>
+                        <h4 class="text-sm font-semibold text-white mt-1">Linerless Tank Cryo-Breathing</h4>
+                        <div class="text-xs text-gray-400 mt-2 space-y-2 font-sans">
+                            <p><strong class="text-gray-300">Physics in 1 Sentence:</strong> Cyclic cabin depressurization at 35,000 ft amplifies inner tank hoop peel stress, driving sub-critical delamination growth across thin-ply carbon sheets.</p>
+                            <p><strong class="text-gray-300">Why Others Missed This:</strong> Legacy aviation structural health monitoring uses strain gauges on metallic skins that fail at cryogenic temperatures and add catastrophic wiring bundle weight.</p>
+                        </div>
+                    </div>
+                    <span class="text-[11px] font-mono text-cyan-300 pt-2 border-t border-gray-900 block">FAA Part 25 Compliance Telemetry</span>
+                </div>
+
+                <div class="p-5 rounded-2xl bg-gray-950 border border-gray-800 space-y-3 flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs font-mono font-semibold text-cyan-400 uppercase">Space Launch Operations</div>
+                        <h4 class="text-sm font-semibold text-white mt-1">Launch Pad Ground Scrub Elimination</h4>
+                        <div class="text-xs text-gray-400 mt-2 space-y-2 font-sans">
+                            <p><strong class="text-gray-300">Physics in 1 Sentence:</strong> Hysteresis scanning provides immediate deterministic go/no-go verification during the terminal chill-down count without hazardous manual sensor inspection.</p>
+                            <p><strong class="text-gray-300">Why Others Missed This:</strong> Launch operators abort counts based on secondary exterior temperature sensor drops or external ambient sniffers after fuel has already vented into the inter-stage cavity.</p>
+                        </div>
+                    </div>
+                    <span class="text-[11px] font-mono text-cyan-300 pt-2 border-t border-gray-900 block">Saves $1.8M per scrubbed launch window</span>
+                </div>
+            </div>
+
+            <!-- Call to Action Banner -->
+            <div class="p-5 rounded-2xl bg-cyan-950/30 border border-cyan-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 rounded-xl bg-cyan-900/60 border border-cyan-700 text-cyan-300">
+                        <i data-lucide="mail" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-white">Inquire About NASA SBIR Phase I/II Subcontracting & Commercial Licensing</h4>
+                        <p class="text-xs text-gray-400">Direct technical inquiries to Principal Investigator & Technology Transition Office</p>
+                    </div>
+                </div>
+                <a href="mailto:support@rfwavecode.com" class="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-semibold text-xs transition font-mono whitespace-nowrap">
+                    support@rfwavecode.com
+                </a>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-900 bg-gray-950/90 py-4 px-6 text-center text-xs font-mono text-gray-500">
+        OptoFiber Flight Health Telemetry &copy; 2026. NASA SBIR Phase I Solicitation S12.04. In Collaboration with University of Central Florida (UCF).
+    </footer>
+
+    <!-- ========================================================================= -->
+    <!-- APPLICATION LOGIC & CHARTS ENGINE -->
+    <!-- ========================================================================= -->
+    <script>
+        // Tab switching logic
+        const tabMapping = {
+            'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+            'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+            'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+            'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+        };
+
+        function switchTab(tabKey) {
+            Object.keys(tabMapping).forEach(key => {
+                const view = document.getElementById(tabMapping[key].viewId);
+                const btn = document.getElementById(tabMapping[key].btnId);
+                if (key === tabKey) {
+                    view.classList.remove('hidden');
+                    btn.className = "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-cyan-300 bg-cyan-950/70 border border-cyan-800/80 transition-all";
+                } else {
+                    view.classList.add('hidden');
+                    btn.className = "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-gray-400 hover:text-white transition-all";
+                }
+            });
+
+            // Retrigger MathJax formula rendering on tab change
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise();
+            }
+
+            // If switching back to simulation, resize canvas
+            if (tabKey === 'sim') {
+                setTimeout(() => {
+                    resizeCanvas();
+                    drawTankCanvas();
+                }, 50);
+            }
+        }
+
+        // --- SIMULATION PHYSICS STATE MODEL ---
+        const BASE_LAMBDA = 1550.000; // nm
+        const ELASTIC_SLOPE = 0.685;   // nm / MPa
+        const PHOTO_FACTOR = 1.20;    // pm / microstrain
+
+        let simState = {
+            pressure: 0.0,       // MPa
+            temperature: 20.0,   // K
+            targetPressure: 0.0,
+            isVenting: false,
+            autoCycling: false,
+            cycleTimer: null,
+            microcracks: 0,
+            delaminationArea: 0, // mm²
+            hysteresisDeficit: 0.0, // nm permanent offset
+            trajectory: [],      // Array of {p, lambda}
+            timeHistory: [],     // Time-series telemetry
+            timeCounter: 0,
+            groundAbortTriggered: false
+        };
+
+        // DOM elements cache
+        const dom = {
+            hudPressure: document.getElementById('hudPressure'),
+            hudPressurePsi: document.getElementById('hudPressurePsi'),
+            hudWavelength: document.getElementById('hudWavelength'),
+            hudShift: document.getElementById('hudShift'),
+            hudHysteresis: document.getElementById('hudHysteresis'),
+            hudHysteresisWrap: document.getElementById('hudHysteresisWrap'),
+            hudPermeation: document.getElementById('hudPermeation'),
+            hudPermeationWrap: document.getElementById('hudPermeationWrap'),
+            hudResidualStrain: document.getElementById('hudResidualStrain'),
+            hudSafetyBadge: document.getElementById('hudSafetyBadge'),
+            pressureSlider: document.getElementById('pressureSlider'),
+            sliderValPressure: document.getElementById('sliderValPressure'),
+            tempSlider: document.getElementById('tempSlider'),
+            sliderValTemp: document.getElementById('sliderValTemp'),
+            cycleModeBadge: document.getElementById('cycleModeBadge'),
+            autoCycleBtn: document.getElementById('autoCycleBtn'),
+            valveStatus: document.getElementById('valveStatus'),
+            loopStatusDesc: document.getElementById('loopStatusDesc'),
+            canvasCrackCount: document.getElementById('canvasCrackCount')
+        };
+
+        // --- CHART.JS CONFIGURATION ---
+        let phaseChart, strainChart, permeationChart;
+
+        function initCharts() {
+            // Chart 1: Phase-Space Scatter (lambda vs P)
+            const ctxPhase = document.getElementById('phaseSpaceChart').getContext('2d');
+            
+            // Baseline nominal line data: 0 to 4.5 MPa
+            const baselinePoints = [];
+            for (let p = 0; p <= 4.5; p += 0.5) {
+                baselinePoints.push({ x: p, y: BASE_LAMBDA + p * ELASTIC_SLOPE });
+            }
+
+            phaseChart = new Chart(ctxPhase, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Theoretical Elastic Line',
+                            data: baselinePoints,
+                            showLine: true,
+                            borderColor: 'rgba(6, 182, 212, 0.4)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            fill: false
+                        },
+                        {
+                            label: 'Delamination Risk Boundary',
+                            data: [
+                                { x: 0.0, y: BASE_LAMBDA + 0.082 },
+                                { x: 4.5, y: BASE_LAMBDA + 4.5 * ELASTIC_SLOPE + 0.082 }
+                            ],
+                            showLine: true,
+                            borderColor: 'rgba(239, 68, 68, 0.4)',
+                            borderWidth: 1.5,
+                            borderDash: [3, 3],
+                            pointRadius: 0,
+                            fill: '+1',
+                            backgroundColor: 'rgba(239, 68, 68, 0.05)'
+                        },
+                        {
+                            label: 'Real-Time Trajectory (λ, P)',
+                            data: [],
+                            showLine: true,
+                            borderColor: '#38bdf8',
+                            borderWidth: 2.5,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#0284c7',
+                            pointHoverRadius: 5
+                        },
+                        {
+                            label: 'Current State',
+                            data: [{ x: 0, y: BASE_LAMBDA }],
+                            pointRadius: 7,
+                            pointBackgroundColor: '#22d3ee',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Tank Hydrostatic Pressure P (MPa)', color: '#9ca3af', font: { family: 'JetBrains Mono', size: 10 } },
+                            min: 0,
+                            max: 4.6,
+                            grid: { color: 'rgba(55, 65, 81, 0.3)' },
+                            ticks: { color: '#9ca3af', font: { family: 'JetBrains Mono' } }
+                        },
+                        y: {
+                            title: { display: true, text: 'Reflected Bragg Wavelength λ (nm)', color: '#9ca3af', font: { family: 'JetBrains Mono', size: 10 } },
+                            min: 1549.8,
+                            max: 1553.5,
+                            grid: { color: 'rgba(55, 65, 81, 0.3)' },
+                            ticks: { color: '#9ca3af', font: { family: 'JetBrains Mono' } }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `P: ${ctx.parsed.x.toFixed(2)} MPa | λ: ${ctx.parsed.y.toFixed(3)} nm`
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Chart 2: Strain Time-Series
+            const ctxStrain = document.getElementById('strainTimeChart').getContext('2d');
+            strainChart = new Chart(ctxStrain, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Hoop Strain (με)',
+                            data: [],
+                            borderColor: '#06b6d4',
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Residual Plastic Offset',
+                            data: [],
+                            borderColor: '#f43f5e',
+                            borderWidth: 1.5,
+                            borderDash: [4, 4],
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            title: { display: true, text: 'Strain (με)', color: '#6b7280', font: { size: 9 } },
+                            grid: { color: 'rgba(55, 65, 81, 0.2)' },
+                            ticks: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 9 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 9 }, boxWidth: 10 } }
+                    }
+                }
+            });
+
+            // Chart 3: Permeation Flux Over Time
+            const ctxPerm = document.getElementById('permeationTimeChart').getContext('2d');
+            permeationChart = new Chart(ctxPerm, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'H2 Permeation (sccm/m²)',
+                            data: [],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            borderWidth: 1.5,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'NASA Safety Limit (1.2 sccm)',
+                            data: [],
+                            borderColor: '#ef4444',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            min: 0,
+                            max: 2.5,
+                            title: { display: true, text: 'sccm / m²', color: '#6b7280', font: { size: 9 } },
+                            grid: { color: 'rgba(55, 65, 81, 0.2)' },
+                            ticks: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 9 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 9 }, boxWidth: 10 } }
+                    }
+                }
+            });
+        }
+
+        // --- HARDWARE CANVAS: COMPOSITE CROSS-SECTION & WAVEGUIDE ---
+        const canvas = document.getElementById('tankCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            const w = rect.width || 600;
+            const h = rect.height || 300;
+            canvas.width = w * window.devicePixelRatio;
+            canvas.height = h * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            drawTankCanvas();
+        });
+
+        // Interactive visual rendering
+        let opticalPulseOffset = 0;
+
+        function drawTankCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            const w = rect.width || 600;
+            const h = rect.height || 300;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // 1. Tank Wall Layering (Cross Section of 8 Carbon Plies)
+            const plyCount = 8;
+            const topMargin = 40;
+            const plyHeight = (h - 80) / plyCount;
+
+            for (let i = 0; i < plyCount; i++) {
+                const y = topMargin + i * plyHeight;
+                // Alternate fiber orientation visual cues [0°, 90°, +45°, -45°]
+                let plyColor = (i % 2 === 0) ? '#0a101d' : '#0e1626';
+                let patternColor = (i % 2 === 0) ? 'rgba(30, 41, 59, 0.5)' : 'rgba(51, 65, 85, 0.4)';
+
+                ctx.fillStyle = plyColor;
+                ctx.fillRect(40, y, w - 80, plyHeight);
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(40, y, w - 80, plyHeight);
+
+                // Draw internal carbon fiber grain lines
+                ctx.strokeStyle = patternColor;
+                ctx.lineWidth = 1;
+                const spacing = 12;
+                for (let x = 45; x < w - 85; x += spacing) {
+                    ctx.beginPath();
+                    if (i % 2 === 0) {
+                        // 0 degree / hoop fibers
+                        ctx.moveTo(x, y + 2);
+                        ctx.lineTo(x + 8, y + plyHeight - 2);
+                    } else {
+                        // transverse / angle fibers
+                        ctx.moveTo(x + 8, y + 2);
+                        ctx.lineTo(x, y + plyHeight - 2);
+                    }
+                    ctx.stroke();
+                }
+
+                // Ply Label
+                ctx.fillStyle = '#64748b';
+                ctx.font = '9px "JetBrains Mono"';
+                ctx.fillText(`Ply ${i + 1}: ${['90°', '0°', '+45°', '-45°'][i % 4]}`, 46, y + plyHeight / 2 + 3);
+            }
+
+            // 2. Embedded Optical Fiber in Inter-ply boundary (Between Ply 4 and 5)
+            const fiberY = topMargin + 4 * plyHeight;
+
+            // Optical cladding & core glow
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#06b6d4';
+            ctx.strokeStyle = '#06b6d4';
+            ctx.lineWidth = 3.5;
+            ctx.beginPath();
+            ctx.moveTo(40, fiberY);
+            ctx.lineTo(w - 40, fiberY);
+            ctx.stroke();
+            ctx.shadowBlur = 0; // reset
+
+            // Grating Periodic Marks (FBG region)
+            const gratingStart = w * 0.35;
+            const gratingEnd = w * 0.65;
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 1.5;
+
+            // Grating spacing stretches dynamically with pressure
+            const currentPeriod = 6 + (simState.pressure * 0.85);
+            for (let gx = gratingStart; gx <= gratingEnd; gx += currentPeriod) {
+                ctx.beginPath();
+                ctx.moveTo(gx, fiberY - 5);
+                ctx.lineTo(gx, fiberY + 5);
+                ctx.stroke();
+            }
+
+            // Light pulse animation traveling down fiber
+            opticalPulseOffset = (opticalPulseOffset + 1.8) % (w - 80);
+            ctx.fillStyle = '#a5f3fc';
+            ctx.beginPath();
+            ctx.arc(40 + opticalPulseOffset, fiberY, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Label for FBG
+            ctx.fillStyle = '#22d3ee';
+            ctx.font = '10px "JetBrains Mono"';
+            ctx.fillText(`FBG SENSOR #3 (Λ₀ = ${(535 + simState.pressure * 0.4).toFixed(1)} nm)`, gratingStart, fiberY - 10);
+
+            // 3. Render Injected Delamination & Resin Micro-cracks
+            if (simState.microcracks > 0) {
+                ctx.strokeStyle = '#f43f5e';
+                ctx.lineWidth = 1.8;
+
+                for (let k = 0; k < simState.microcracks; k++) {
+                    // Seeded positions near FBG
+                    const cx = gratingStart + 15 + (k * 22) % (gratingEnd - gratingStart);
+                    const cy = fiberY - (k % 2 === 0 ? 12 : -10);
+
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.lineTo(cx + 6, cy + 12);
+                    ctx.lineTo(cx + 12, cy + 6);
+                    ctx.stroke();
+
+                    // Crack halo
+                    ctx.fillStyle = 'rgba(244, 63, 94, 0.15)';
+                    ctx.beginPath();
+                    ctx.arc(cx + 6, cy + 6, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // 4. Render Delamination Void Zone
+            if (simState.delaminationArea > 0) {
+                const voidWidth = Math.min(180, 40 + simState.delaminationArea * 1.5);
+                ctx.fillStyle = 'rgba(168, 85, 247, 0.25)';
+                ctx.strokeStyle = '#c084fc';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.ellipse(w * 0.52, fiberY, voidWidth / 2, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#e9d5ff';
+                ctx.font = '9px "JetBrains Mono"';
+                ctx.fillText(`DELAMINATION: ${simState.delaminationArea} mm²`, w * 0.52 - 40, fiberY + 18);
+            }
+
+            // 5. Cryogenic Liquid Hydrogen Boundary Indicator (Top)
+            ctx.fillStyle = 'rgba(14, 165, 233, 0.08)';
+            ctx.fillRect(40, 10, w - 80, 25);
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = '10px "JetBrains Mono"';
+            ctx.fillText(`▲ TANK INTERIOR: LIQUID HYDROGEN (LH2) @ ${simState.temperature.toFixed(0)} K | P = ${simState.pressure.toFixed(2)} MPa`, 48, 26);
+        }
+
+        // --- SIMULATION TICK & STATE OBSERVER ---
+        function simulationStep() {
+            // Pressure ramping toward target (pressurization or venting)
+            const dp = simState.targetPressure - simState.pressure;
+            if (Math.abs(dp) > 0.01) {
+                simState.pressure += Math.sign(dp) * Math.min(Math.abs(dp), 0.04);
+            } else {
+                simState.pressure = simState.targetPressure;
+            }
+
+            // Calculate current wavelength shift
+            // Thermal shift component (relative to 20K)
+            const thermalShift = (simState.temperature - 20) * 0.0098;
+            
+            // Elastic strain shift
+            let elasticShift = simState.pressure * ELASTIC_SLOPE;
+
+            // Damage growth under high pressure proof (> 3.5 MPa)
+            if (simState.pressure > 3.6 && simState.microcracks > 0) {
+                simState.delaminationArea = Math.min(120, simState.delaminationArea + 0.15);
+                simState.hysteresisDeficit = Math.min(0.24, simState.hysteresisDeficit + 0.0004);
+            }
+
+            // During depressurization (venting), the hysteresis deficit manifests
+            let currentLambda;
+            if (simState.isVenting) {
+                // Lambda fails to return to baseline due to locked-in micro-strain
+                currentLambda = BASE_LAMBDA + elasticShift + thermalShift + simState.hysteresisDeficit;
+            } else {
+                currentLambda = BASE_LAMBDA + elasticShift + thermalShift;
+            }
+
+            // Calculate Permeation Flux (sccm/m²)
+            // Increases quadratically with pressure and microcrack density
+            const crackFactor = 1 + (simState.microcracks * 0.8) + (simState.delaminationArea * 0.05);
+            let permeationFlux = (0.08 * simState.pressure + 0.02 * Math.pow(simState.pressure, 2)) * crackFactor;
+            if (simState.pressure < 0.05) permeationFlux = 0.0;
+
+            // Microstrain calculation
+            const hoopMicrostrain = (simState.pressure * ELASTIC_SLOPE * 1000) / PHOTO_FACTOR;
+            const residualMicrostrain = (simState.hysteresisDeficit * 1000) / PHOTO_FACTOR;
+
+            // Record trajectory point
+            simState.trajectory.push({
+                x: parseFloat(simState.pressure.toFixed(2)),
+                y: parseFloat(currentLambda.toFixed(4))
+            });
+            if (simState.trajectory.length > 300) simState.trajectory.shift();
+
+            // Record Time-Series telemetry (every 2nd step)
+            simState.timeCounter++;
+            if (simState.timeCounter % 2 === 0) {
+                simState.timeHistory.push({
+                    t: (simState.timeCounter * 0.04).toFixed(1),
+                    strain: hoopMicrostrain,
+                    resStrain: residualMicrostrain,
+                    perm: permeationFlux
+                });
+                if (simState.timeHistory.length > 40) simState.timeHistory.shift();
+            }
+
+            // --- AUTONOMOUS STATE OBSERVER & SAFETY INTERLOCK ---
+            const permThreshold = 1.2;
+            const hysteresisAlarmThreshold = 0.082; // nm
+
+            if (simState.hysteresisDeficit >= hysteresisAlarmThreshold || permeationFlux >= permThreshold) {
+                triggerGroundAbort(simState.hysteresisDeficit, permeationFlux);
+            } else if (simState.microcracks > 0 || simState.hysteresisDeficit > 0.03) {
+                setObserverState('warning');
+            } else {
+                setObserverState('nominal');
+            }
+
+            // --- UPDATE DOM HUD ---
+            dom.hudPressure.textContent = simState.pressure.toFixed(2);
+            dom.hudPressurePsi.textContent = `${(simState.pressure * 145.038).toFixed(1)} psia (Cryo Level)`;
+            dom.hudWavelength.textContent = currentLambda.toFixed(3);
+            dom.hudShift.textContent = `Δλ = ${(currentLambda - BASE_LAMBDA >= 0 ? '+' : '') + (currentLambda - BASE_LAMBDA).toFixed(3)} nm`;
+            dom.hudHysteresis.textContent = simState.hysteresisDeficit.toFixed(3);
+            dom.hudResidualStrain.textContent = `ε_res: ${residualMicrostrain.toFixed(1)} με`;
+            dom.hudPermeation.textContent = permeationFlux.toFixed(2);
+            dom.sliderValPressure.textContent = `${simState.pressure.toFixed(2)} MPa (${(simState.pressure * 145.038).toFixed(0)} psi)`;
+            dom.canvasCrackCount.textContent = simState.microcracks;
+
+            // Sync slider position if in auto cycle
+            if (simState.autoCycling) {
+                dom.pressureSlider.value = simState.pressure;
+            }
+
+            // Update Charts
+            updateCharts(currentLambda);
+
+            // Re-render Hardware Cross-Section
+            drawTankCanvas();
+        }
+
+        function updateCharts(currentLambda) {
+            // Update Phase Space Chart
+            if (phaseChart) {
+                phaseChart.data.datasets[2].data = simState.trajectory;
+                phaseChart.data.datasets[3].data = [{ x: simState.pressure, y: currentLambda }];
+                phaseChart.update('none');
+            }
+
+            // Update Time-Series Charts
+            if (strainChart && simState.timeHistory.length > 0) {
+                strainChart.data.labels = simState.timeHistory.map(d => d.t);
+                strainChart.data.datasets[0].data = simState.timeHistory.map(d => d.strain);
+                strainChart.data.datasets[1].data = simState.timeHistory.map(d => d.resStrain);
+                strainChart.update('none');
+            }
+
+            if (permeationChart && simState.timeHistory.length > 0) {
+                permeationChart.data.labels = simState.timeHistory.map(d => d.t);
+                permeationChart.data.datasets[0].data = simState.timeHistory.map(d => d.perm);
+                permeationChart.data.datasets[1].data = simState.timeHistory.map(() => 1.2);
+                permeationChart.update('none');
+            }
+        }
+
+        // --- OBSERVER STATE UI HANDLERS ---
+        function setObserverState(mode) {
+            if (simState.groundAbortTriggered) return;
+
+            if (mode === 'nominal') {
+                dom.hudSafetyBadge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 text-xs font-semibold w-fit mt-1";
+                dom.hudSafetyBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> NOMINAL PLY INTEGRITY';
+                dom.hudHysteresisWrap.className = "text-2xl font-bold text-emerald-400 flex items-baseline gap-1 mt-1";
+                dom.hudPermeationWrap.className = "text-2xl font-bold text-emerald-400 flex items-baseline gap-1 mt-1";
+            } else if (mode === 'warning') {
+                dom.hudSafetyBadge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-950/80 text-amber-300 border border-amber-800/80 text-xs font-semibold w-fit mt-1";
+                dom.hudSafetyBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> FATIGUE ONSET DETECTED';
+                dom.hudHysteresisWrap.className = "text-2xl font-bold text-amber-400 flex items-baseline gap-1 mt-1";
+            }
+        }
+
+        function triggerGroundAbort(deficit, perm) {
+            simState.groundAbortTriggered = true;
+            simState.targetPressure = 0.0;
+            simState.isVenting = true;
+            simState.autoCycling = false;
+
+            dom.hudSafetyBadge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-950 text-rose-300 border border-rose-700 text-xs font-semibold w-fit mt-1 animate-pulse glow-red";
+            dom.hudSafetyBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span> EMERGENCY ABORT: DELAMINATION';
+            
+            dom.hudHysteresisWrap.className = "text-2xl font-bold text-rose-500 flex items-baseline gap-1 mt-1";
+            dom.hudPermeationWrap.className = "text-2xl font-bold text-rose-500 flex items-baseline gap-1 mt-1";
+
+            dom.valveStatus.textContent = "VENT VALVES OPEN (CHAMBER EMERGENCY EVAC)";
+            dom.valveStatus.className = "text-xs font-mono font-bold text-rose-400 animate-pulse";
+
+            dom.loopStatusDesc.innerHTML = `<span class="text-rose-400 font-semibold font-mono">CRITICAL SAFETY INTERLOCK ENGAGED:</span> Permanent hysteresis loop shift (&delta;h = ${deficit.toFixed(3)} nm) exceeds structural threshold. Tank loading aborted to protect ground personnel and launch pad.`;
+            
+            dom.cycleModeBadge.textContent = "MODE: EMERGENCY DEPRESSURIZATION";
+            dom.cycleModeBadge.className = "text-xs font-mono px-2 py-0.5 rounded bg-rose-900 text-rose-200";
+        }
+
+        // --- USER INTERACTIONS ---
+        function updateManualPressure(val) {
+            simState.targetPressure = parseFloat(val);
+            if (simState.targetPressure < simState.pressure) {
+                simState.isVenting = true;
+            } else {
+                simState.isVenting = false;
+            }
+        }
+
+        function updateManualTemp(val) {
+            simState.temperature = parseFloat(val);
+            dom.sliderValTemp.textContent = `${val} K (${val <= 30 ? 'Liquid H2 Cryo' : 'Sub-Ambient / Purge'})`;
+        }
+
+        function injectDamage(type) {
+            if (type === 'microcrack') {
+                simState.microcracks += 3;
+                simState.hysteresisDeficit += 0.028;
+            } else if (type === 'delamination') {
+                simState.delaminationArea += 25;
+                simState.hysteresisDeficit += 0.055;
+            }
+            drawTankCanvas();
+        }
+
+        function runAutoCycle() {
+            if (simState.autoCycling) return;
+            simState.autoCycling = true;
+            simState.isVenting = false;
+            dom.cycleModeBadge.textContent = "MODE: AUTO PRESSURIZATION";
+            dom.cycleModeBadge.className = "text-xs font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800";
+
+            // Stage 1: Ramp to proof pressure 4.2 MPa
+            simState.targetPressure = 4.2;
+
+            setTimeout(() => {
+                if (!simState.autoCycling) return;
+                // Stage 2: Hold & Vent back to 0 MPa to demonstrate hysteresis
+                dom.cycleModeBadge.textContent = "MODE: CONTROLLED VENTING";
+                dom.cycleModeBadge.className = "text-xs font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800";
+                simState.isVenting = true;
+                simState.targetPressure = 0.0;
+
+                setTimeout(() => {
+                    if (!simState.autoCycling) return;
+                    simState.autoCycling = false;
+                    dom.cycleModeBadge.textContent = "MODE: CYCLE COMPLETE (HOLD)";
+                    dom.cycleModeBadge.className = "text-xs font-mono px-2 py-0.5 rounded bg-gray-800 text-gray-300";
+                }, 5500);
+            }, 5500);
+        }
+
+        function resetSimulation() {
+            simState.pressure = 0.0;
+            simState.targetPressure = 0.0;
+            simState.temperature = 20.0;
+            simState.microcracks = 0;
+            simState.delaminationArea = 0;
+            simState.hysteresisDeficit = 0.0;
+            simState.isVenting = false;
+            simState.autoCycling = false;
+            simState.groundAbortTriggered = false;
+            simState.trajectory = [];
+            simState.timeHistory = [];
+
+            dom.pressureSlider.value = 0.0;
+            dom.tempSlider.value = 20;
+            dom.sliderValTemp.textContent = "20 K (Liquid H2)";
+            dom.cycleModeBadge.textContent = "MODE: STATIC HOLD";
+            dom.cycleModeBadge.className = "text-xs font-mono px-2 py-0.5 rounded bg-gray-800 text-gray-300";
+            dom.valveStatus.textContent = "VALVES OPEN (FLOW OK)";
+            dom.valveStatus.className = "text-xs font-mono font-bold text-emerald-400";
+            dom.loopStatusDesc.textContent = "Observer monitoring continuous ∮ λ_B(P) dP. If hysteresis loop deficit δ_h > 0.082 nm, ground fueling valve closes instantly prior to catastrophic rupture.";
+
+            setObserverState('nominal');
+            drawTankCanvas();
+        }
+
+        // Initialize everything on window load
+        window.onload = function () {
+            // Render icons
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+
+            // Initialize visual elements
+            resizeCanvas();
+            initCharts();
+            drawTankCanvas();
+
+            // Run high-rate simulation interval
+            setInterval(simulationStep, 45);
+        };
+    </script>
+</body>
+</html>
